@@ -4,6 +4,9 @@ init_globals() {
 	readonly KEYSTROKE=0
 	readonly EXECUTE=1
 	readonly STRING=2
+
+	readonly CORRECT=0
+	readonly WRONG=1
 }
 
 init_questions() {
@@ -24,27 +27,51 @@ init_questions() {
 		        ["ans"]=$'\ed'
 		      	["section"]="bash.txt" )
 
-	question5=( ["description"]="clear screen"
+	declare -Ag question5=( ["description"]="clear screen"
 		        ["type"]="$STRING" 
-		        ["ans"]="27"
-		      	["section"]="bash.txt" )
-	question6=( ["description"]="move to beginning of line"
-		        ["type"]="$STRING" 
-		        ["ans"]="27"
-		      	["section"]="bash.txt" )
-	question7=( ["description"]="move to end of line"
-		        ["type"]="$STRING" 
-		        ["ans"]="27"
-		      	["section"]="bash.txt" )
-	question8=( ["description"]="delete to beginning of line"
-		        ["type"]="$STRING" 
-		        ["ans"]="27"
-		      	["section"]="bash.txt" )
-	question9=( ["description"]="delete to end of line"
-		        ["type"]="$STRING" 
-		        ["ans"]="27"
+		        ["ans"]=$'\x0c'
 		      	["section"]="bash.txt" )
 
+	declare -Ag question6=( ["description"]="move to beginning of line"
+		        ["type"]="$STRING" 
+		        ["ans"]=$'\x01'
+		      	["section"]="bash.txt" )
+	declare -Ag question7=( ["description"]="move to end of line"
+		        ["type"]="$STRING" 
+		        ["ans"]=$'\x05'
+		      	["section"]="bash.txt" )
+	declare -Ag question8=( ["description"]="delete to beginning of line"
+		        ["type"]="$STRING" 
+		        ["ans"]=$'\x15'
+		      	["section"]="bash.txt" )
+	declare -Ag question9=( ["description"]="delete to end of line"
+		        ["type"]="$STRING" 
+		        ["ans"]=$'\x0b'
+		      	["section"]="bash.txt" )
+
+}
+
+str_to_hex() {
+	printf $(printf "%s" "$1" | xxd -p )
+}
+
+capture_ans() {
+	ans=	
+	while true;do
+	    stty_state=$(stty -g) 
+	    #Save stty to reset to default
+	    stty raw isig 
+	    keypress=$(dd conv=sync count=1 2>/dev/null)
+	    #Capture one character at a time
+	    stty "$stty_state"
+	    keycode=$(printf "%s" "$keypress" | xxd -p)
+	    if [ "$keycode" == "04" ] || [ "$keycode" == "0d" ]; then
+		break
+	    fi
+	    #Revert stty back
+	    ans=$ans$keycode
+	done
+	echo -n $ans
 }
 
 ask_question() {
@@ -53,28 +80,48 @@ ask_question() {
 	temp=question$1[description]
 	printf "%s:\n" "${!temp}"
 	
-	read ans
-	
+	ans=$(capture_ans)
+		
+	echo -e '\b\b  '
 	# print both expected and actual
-	echo -n "Your answer is: "
-	printf "%b" $ans | xxd -p
+	echo -ne "\nYour answer is: "
+	printf "%s\n" $ans
 	temp=question$1[ans]
 	echo -n "Correct answer is: "	
-	printf "%b" ${!temp} | xxd -p
+	temp=$(printf "%b" ${!temp} | xxd -p)
+	printf "%s\n" $temp
 	
 	# compare and print result
-	if [ "$ans" == "${!temp}" ]; then
-		echo "You are right!"
+	if [ "$ans" == "$temp" ]; then
+		print_feedback $CORRECT
 	else
-		echo "YOu are WRONG!"
+		print_feedback $WRONG
 	fi
-	printf "\n\n"
 }
+
+print_feedback() {
+	if [ "$1" == "$CORRECT" ]; then
+		tput setab 2
+		echo -n "RIGHT!"
+	else
+		tput setab 1
+		echo -n "WRONG!"
+	fi
+	tput setab 0
+	printf "\n\n\n"
+}
+
+ask_questions_from_to() {
+	for (( i=1; i <= $1; i++ ))
+	do
+		ask_question $i
+	done
+
+}
+
 clear
 init_globals
 init_questions
 
-ask_question 1
-ask_question 2
-ask_question 3
-ask_question 4
+ask_questions_from_to 9
+
