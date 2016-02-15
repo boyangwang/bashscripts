@@ -13,14 +13,13 @@ main() {
 }
 
 init_globals() {
-	readonly KEYSTROKE=0
-	readonly EXECUTE=1
-	readonly STRING=2
+	readonly EXECUTE=0
+	readonly STRING=1
 
 	readonly CORRECT=0
 	readonly WRONG=1
 
-	readonly NUMBER_QUESTIONS=21
+	readonly NUMBER_QUESTIONS=34
 }
 
 init_questions() {
@@ -157,17 +156,19 @@ init_questions() {
 	["type"]="$STRING"
 	["ans"]=$':%s/ABC/DEF/gc'
 	["section"]="vimtutor" )
-
 	declare -Ag question33=( ["description"]="execute ls externally"
 	["type"]="$STRING"
 	["ans"]=$':!ls'
 	["section"]="vimtutor" )
-
 	declare -Ag question34=( ["description"]="open new line and start inserting"
 	["type"]="$STRING"
 	["ans"]=$'o'
 	["section"]="vimtutor" )
 
+	declare -Ag question35=( ["description"]="search for all .html files for the text Access any website"
+	["type"]="$EXECUTE"
+	["ans"]='./Hola.html:          <span class="simple-header ng-scope" translate="">Access any website</span>'
+	["section"]="bash.txt" )
 }
 
 ask_questions_from_to() {
@@ -178,28 +179,20 @@ ask_questions_from_to() {
 }
 
 ask_question() {
-	# print question number and description
-	printf "ASKING QN NO.$1\n"
-	temp=question$1[section]
-	tput smso
-	printf "%s: " "${!temp}"
-	tput rmso
-	temp=question$1[description]
+	print_question_number_section_description $1
 
-	printf "%s:\n" "${!temp}"
+	temp=question$1[type]
 
-	ans=$(capture_ans)
+	if [ ${!temp} == $STRING ]; then
+		ans=$(capture_ans_string)
+	elif [ ${!temp} == $EXECUTE ]; then
+		ans=$(capture_ans_execute)
+	else
+		ans=
+	fi
 
-	echo -e '\b\b  '
-	# print both expected and actual
-	echo -ne "\nYour answer is: "
-	printf "%s\n" $ans
-	temp=question$1[ans]
-	echo -n "Correct answer is: "
-	temp=$(printf "%b" ${!temp} | xxd -p)
-	printf "%s\n" $temp
+	print_actual_expected_ans $1 $ans
 
-	# compare and print result
 	if [ "$ans" == "$temp" ]; then
 		print_feedback $CORRECT
 	else
@@ -207,7 +200,27 @@ ask_question() {
 	fi
 }
 
-capture_ans() {
+print_actual_expected_ans() {
+	echo -e '\b\b  '
+	echo -ne "\nYour answer is: "
+	printf "%s\n" $2
+	temp=question$1[ans]
+	echo -n "Correct answer is: "
+	temp=$(printf "%b" ${!temp} | xxd -p)
+	printf "%s\n" $temp
+}
+
+print_question_number_section_description() {
+	printf "ASKING QN NO.$1\n"
+	temp=question$1[section]
+
+	printf "\e[4m%s:\e[0m " "${!temp}"
+
+	temp=question$1[description]
+	printf "%s:\n" "${!temp}"
+}
+
+capture_ans_string() {
 	ans=
 	while true;do
 	    stty_state=$(stty -g)
@@ -218,7 +231,7 @@ capture_ans() {
 	    stty "$stty_state"
 	    keycode=$(printf "%s" "$keypress" | xxd -p)
 	    if [ "$keycode" == "04" ] || [ "$keycode" == "0d" ]; then
-		break
+				break
 	    fi
 	    #Revert stty back
 	    ans=$ans$keycode
@@ -226,15 +239,18 @@ capture_ans() {
 	echo -n $ans
 }
 
+capture_ans_execute() {
+	read -e cmd
+	echo $($cmd)
+}
+
 print_feedback() {
 	if [ "$1" == "$CORRECT" ]; then
-		tput setab 2
-		echo -n "RIGHT!"
+		echo -en "\e[7;32mRIGHT!\e[0m"
 	else
-		tput setab 1
-		echo -n "WRONG!"
+		echo -en "\e[7;31mWRONG!\e[0m"
 	fi
-	tput setab 0
+
 	printf "\n\n\n"
 }
 
